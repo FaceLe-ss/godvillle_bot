@@ -10,7 +10,7 @@ run_worker_first = ["/api/*", "/telegram/*", "/health"]
 [[d1_databases]]
 binding = "DB"
 database_name = "godville-boss-db"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "876c14fc-1b80-4b12-8c79-bee7d8fd40ef"
 
 [triggers]
 crons = ["* * * * *"]

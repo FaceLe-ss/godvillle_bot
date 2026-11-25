@@ -522,3 +522,15 @@ input:focus {
 .hidden {
   display: none !important;
 }
+
+body.in-telegram .sticky-footer {
+  display: none;
+}
+
+body.in-telegram .app {
+  padding-bottom: 20px;
+}
+
+body.in-telegram .toast {
+  bottom: 18px;
+}

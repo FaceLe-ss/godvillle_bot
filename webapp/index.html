@@ -23,39 +23,9 @@
       <div id="previewBanner" class="banner hidden"></div>
     </header>
 
-    <section id="credentialsCard" class="card">
-      <div class="section-head">
-        <h2>1. Аккаунт Годвилля</h2>
-        <span id="apiModeTag" class="tag">API</span>
-      </div>
-      <div id="apiCredentialsForm">
-        <div class="field-grid">
-          <label class="field">
-            <span>Имя бога</span>
-            <input id="godNameInput" type="text" placeholder="Например: ТестБог" autocomplete="off" />
-          </label>
-          <label class="field">
-            <span>Секретный API-токен</span>
-            <input id="apiTokenInput" type="password" placeholder="Оставьте пустым, чтобы не менять" autocomplete="off" />
-          </label>
-        </div>
-        <div class="row-actions">
-          <button id="checkHeroBtn" type="button" class="btn btn-secondary">Проверить и привязать</button>
-        </div>
-        <div id="heroLiveCard" class="live-box hidden"></div>
-      </div>
-      <div id="sendDataCredsNote" class="hint-box hidden">
-        <p>Привязанный бог: <strong id="sendDataGodName">не привязан</strong>.</p>
-        <p class="muted">
-          Для безопасности секретный API-токен привязывается командой
-          <code>/setup ИмяБога Токен</code> прямо в чате с ботом.
-        </p>
-      </div>
-    </section>
-
     <section class="card">
       <div class="section-head">
-        <h2>2. Уровни боссов</h2>
+        <h2>1. Уровни боссов</h2>
         <button id="clearLevelsBtn" type="button" class="link-btn">Сбросить</button>
       </div>
       <p class="muted">Число способностей / палуб / уровень запчастей (1–4):</p>
@@ -85,7 +55,7 @@
 
     <section class="card">
       <div class="section-head">
-        <h2>3. Имена боссов</h2>
+        <h2>2. Имена боссов</h2>
         <button id="clearNamesBtn" type="button" class="link-btn">Очистить</button>
       </div>
       <div class="input-row">
@@ -112,7 +82,7 @@
 
     <section class="card">
       <div class="section-head">
-        <h2>4. Где отслеживать бои</h2>
+        <h2>3. Где отслеживать бои</h2>
       </div>
       <div id="fightTypesGrid" class="fight-grid">
         <label class="toggle-tile">
@@ -148,7 +118,7 @@
 
     <section class="card">
       <div class="section-head">
-        <h2>5. Режим фильтра и уведомлений</h2>
+        <h2>4. Режим фильтра и уведомлений</h2>
       </div>
       <div id="filterModeGroup" class="mode-list">
         <label class="mode-option">
@@ -189,6 +159,36 @@
           </span>
           <input id="unknownEntryToggle" type="checkbox" />
         </label>
+      </div>
+    </section>
+
+    <section id="credentialsCard" class="card">
+      <div class="section-head">
+        <h2>5. Аккаунт Годвилля</h2>
+        <span id="apiModeTag" class="tag">API</span>
+      </div>
+      <div id="apiCredentialsForm">
+        <div class="field-grid">
+          <label class="field">
+            <span>Имя бога</span>
+            <input id="godNameInput" type="text" placeholder="Например: ТестБог" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span>Секретный API-токен</span>
+            <input id="apiTokenInput" type="password" placeholder="Оставьте пустым, чтобы не менять" autocomplete="off" />
+          </label>
+        </div>
+        <div class="row-actions">
+          <button id="checkHeroBtn" type="button" class="btn btn-secondary">Проверить и привязать</button>
+        </div>
+        <div id="heroLiveCard" class="live-box hidden"></div>
+      </div>
+      <div id="sendDataCredsNote" class="hint-box hidden">
+        <p>Привязанный бог: <strong id="sendDataGodName">не привязан</strong>.</p>
+        <p class="muted">
+          Для безопасности секретный API-токен привязывается командой
+          <code>/setup ИмяБога Токен</code> прямо в чате с ботом.
+        </p>
       </div>
     </section>
 

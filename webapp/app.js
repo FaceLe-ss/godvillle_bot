@@ -475,7 +475,12 @@
 
   els.saveBtn.addEventListener("click", saveAllSettings);
 
-  if (tg && tg.MainButton) {
+  const inTelegram = Boolean(
+    tg && (tg.initData || (tg.platform && tg.platform !== "unknown"))
+  );
+
+  if (inTelegram && tg && tg.MainButton) {
+    document.body.classList.add("in-telegram");
     tg.MainButton.setText("Сохранить настройки");
     tg.MainButton.show();
     tg.MainButton.onClick(saveAllSettings);

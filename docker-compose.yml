@@ -1,0 +1,11 @@
+services:
+  godville-boss-bot:
+    build: .
+    container_name: godville-boss-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DB_PATH: /app/data/bot.db
+    volumes:
+      - ./data:/app/data

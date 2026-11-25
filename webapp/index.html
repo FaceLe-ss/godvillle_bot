@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Godville Boss Filter — Mini App</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="hero-header card">
+      <div class="header-top">
+        <div>
+          <p class="eyebrow">GODVILLE MONITOR</p>
+          <h1>Настройка фильтров боссов</h1>
+        </div>
+        <span id="statusBadge" class="badge badge-active">Активен</span>
+      </div>
+      <p id="modeDescription" class="subtitle">
+        Уведомление придёт при встрече босса с нужным <strong>именем ИЛИ уровнем</strong>.
+      </p>
+      <div id="previewBanner" class="banner hidden"></div>
+    </header>
+
+    <section id="credentialsCard" class="card">
+      <div class="section-head">
+        <h2>1. Аккаунт Годвилля</h2>
+        <span id="apiModeTag" class="tag">API</span>
+      </div>
+      <div id="apiCredentialsForm">
+        <div class="field-grid">
+          <label class="field">
+            <span>Имя бога</span>
+            <input id="godNameInput" type="text" placeholder="Например: ТестБог" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span>Секретный API-токен</span>
+            <input id="apiTokenInput" type="password" placeholder="Оставьте пустым, чтобы не менять" autocomplete="off" />
+          </label>
+        </div>
+        <div class="row-actions">
+          <button id="checkHeroBtn" type="button" class="btn btn-secondary">Проверить и привязать</button>
+        </div>
+        <div id="heroLiveCard" class="live-box hidden"></div>
+      </div>
+      <div id="sendDataCredsNote" class="hint-box hidden">
+        <p>Привязанный бог: <strong id="sendDataGodName">не привязан</strong>.</p>
+        <p class="muted">
+          Для безопасности секретный API-токен привязывается командой
+          <code>/setup ИмяБога Токен</code> прямо в чате с ботом.
+        </p>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="section-head">
+        <h2>2. Уровни боссов</h2>
+        <button id="clearLevelsBtn" type="button" class="link-btn">Сбросить</button>
+      </div>
+      <p class="muted">Число способностей / палуб / уровень запчастей (1–4):</p>
+      <div id="levelsGrid" class="levels-grid">
+        <button type="button" class="level-card" data-level="1">
+          <span class="lvl-num">1</span>
+          <span class="lvl-title">1 уровень</span>
+          <span class="lvl-sub">Одноабилы</span>
+        </button>
+        <button type="button" class="level-card" data-level="2">
+          <span class="lvl-num">2</span>
+          <span class="lvl-title">2 уровень</span>
+          <span class="lvl-sub">Двухабилы</span>
+        </button>
+        <button type="button" class="level-card" data-level="3">
+          <span class="lvl-num">3</span>
+          <span class="lvl-title">3 уровень</span>
+          <span class="lvl-sub">Трёхабилы</span>
+        </button>
+        <button type="button" class="level-card" data-level="4">
+          <span class="lvl-num">4</span>
+          <span class="lvl-title">4 уровень</span>
+          <span class="lvl-sub">Четырёхабилы</span>
+        </button>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="section-head">
+        <h2>3. Имена боссов</h2>
+        <button id="clearNamesBtn" type="button" class="link-btn">Очистить</button>
+      </div>
+      <div class="input-row">
+        <input id="bossNameInput" type="text" placeholder="Введите имя или несколько через запятую" />
+        <button id="addNameBtn" type="button" class="btn btn-primary">Добавить</button>
+      </div>
+      <div id="selectedNamesChips" class="chips-wrap"></div>
+
+      <details class="catalog-details" open>
+        <summary>Быстрый выбор из каталога подземелий (1–4 ур.)</summary>
+        <div class="catalog-controls">
+          <input id="catalogSearchInput" type="search" placeholder="Поиск босса в каталоге..." />
+          <div id="catalogLevelTabs" class="tabs-row">
+            <button type="button" class="tab-btn active" data-cat-lvl="all">Все</button>
+            <button type="button" class="tab-btn" data-cat-lvl="1">1 ур.</button>
+            <button type="button" class="tab-btn" data-cat-lvl="2">2 ур.</button>
+            <button type="button" class="tab-btn" data-cat-lvl="3">3 ур.</button>
+            <button type="button" class="tab-btn" data-cat-lvl="4">4 ур.</button>
+          </div>
+        </div>
+        <div id="catalogGrid" class="catalog-grid"></div>
+      </details>
+    </section>
+
+    <section class="card">
+      <div class="section-head">
+        <h2>4. Где отслеживать бои</h2>
+      </div>
+      <div id="fightTypesGrid" class="fight-grid">
+        <label class="toggle-tile">
+          <input type="checkbox" value="dungeon" />
+          <span>
+            <strong>Подземелье</strong>
+            <small>dungeon · боссы 1–4 ур.</small>
+          </span>
+        </label>
+        <label class="toggle-tile">
+          <input type="checkbox" value="sail" />
+          <span>
+            <strong>Море (заплыв)</strong>
+            <small>sail · твари и левиафаны</small>
+          </span>
+        </label>
+        <label class="toggle-tile">
+          <input type="checkbox" value="boss" />
+          <span>
+            <strong>Босс мини-квеста</strong>
+            <small>boss · финал мини-квеста</small>
+          </span>
+        </label>
+        <label class="toggle-tile">
+          <input type="checkbox" value="boss_m" />
+          <span>
+            <strong>Наземный зацеп</strong>
+            <small>boss_m · полевой босс</small>
+          </span>
+        </label>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="section-head">
+        <h2>5. Режим фильтра и уведомлений</h2>
+      </div>
+      <div id="filterModeGroup" class="mode-list">
+        <label class="mode-option">
+          <input type="radio" name="filter_mode" value="smart" />
+          <span>
+            <strong>Умный режим</strong>
+            <small>Уведомляет при совпадении имени ИЛИ уровня; если фильтры пусты — о любом боссе.</small>
+          </span>
+        </label>
+        <label class="mode-option">
+          <input type="radio" name="filter_mode" value="strict" />
+          <span>
+            <strong>Строгий фильтр</strong>
+            <small>Только при совпадении заданного имени или уровня.</small>
+          </span>
+        </label>
+        <label class="mode-option">
+          <input type="radio" name="filter_mode" value="all" />
+          <span>
+            <strong>Все боссы</strong>
+            <small>Присылать все схватки и выделять совпадения пометкой 🎯.</small>
+          </span>
+        </label>
+      </div>
+
+      <div class="switches-list">
+        <label class="switch-row">
+          <span>
+            <strong>Мониторинг активен</strong>
+            <small>Фоновый опрос API каждую минуту</small>
+          </span>
+          <input id="enabledToggle" type="checkbox" />
+        </label>
+        <label class="switch-row">
+          <span>
+            <strong>Сигнал при входе без деталей</strong>
+            <small>Предупредить при старте боя, если в diary_last ещё нет имени/уровня</small>
+          </span>
+          <input id="unknownEntryToggle" type="checkbox" />
+        </label>
+      </div>
+    </section>
+
+    <div class="footer-spacer"></div>
+  </div>
+
+  <footer class="sticky-footer">
+    <button id="saveBtn" type="button" class="btn btn-primary btn-full">Сохранить настройки</button>
+  </footer>
+
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+  <script src="./app.js"></script>
+</body>
+</html>

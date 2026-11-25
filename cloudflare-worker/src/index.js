@@ -9,6 +9,42 @@ import { verifyTelegramInitData } from "./telegram_auth.js";
 
 const VALID_MODES = ["smart", "strict", "all"];
 
+let schemaReady = false;
+
+async function ensureSchema(env) {
+  if (schemaReady) return;
+  if (!env.DB) {
+    throw new Error("D1 binding env.DB is not configured");
+  }
+  await env.DB.batch([
+    env.DB.prepare(
+      `CREATE TABLE IF NOT EXISTS users (
+        telegram_id INTEGER PRIMARY KEY,
+        god_name TEXT,
+        api_token TEXT,
+        base_url TEXT NOT NULL DEFAULT 'https://godville.net',
+        enabled INTEGER NOT NULL DEFAULT 1,
+        fight_types TEXT NOT NULL DEFAULT '["dungeon","sail"]',
+        name_filters TEXT NOT NULL DEFAULT '[]',
+        level_filters TEXT NOT NULL DEFAULT '[]',
+        filter_mode TEXT NOT NULL DEFAULT 'smart',
+        notify_unknown_entry INTEGER NOT NULL DEFAULT 0,
+        last_fight_type TEXT,
+        last_diary TEXT,
+        last_notified_key TEXT,
+        last_notified_at TEXT,
+        token_warning_sent INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`
+    ),
+    env.DB.prepare(
+      "CREATE INDEX IF NOT EXISTS idx_users_active ON users (enabled, god_name, api_token)"
+    ),
+  ]);
+  schemaReady = true;
+}
+
 function escapeHtml(text) {
   return String(text || "")
     .replace(/&/g, "&amp;")
@@ -72,6 +108,7 @@ function serializeForWebapp(user) {
 }
 
 async function getOrCreateUser(env, telegramId) {
+  await ensureSchema(env);
   let row = await env.DB.prepare("SELECT * FROM users WHERE telegram_id = ?")
     .bind(telegramId)
     .first();
@@ -185,12 +222,19 @@ async function fetchGodvilleHero(godName, apiToken, baseUrl = "https://godville.
 }
 
 async function callTelegram(env, method, body) {
+  if (!env.BOT_TOKEN) {
+    throw new Error("BOT_TOKEN secret is not configured in Cloudflare Worker");
+  }
   const resp = await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/${method}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  return resp.json().catch(() => ({}));
+  const data = await resp.json().catch(() => ({ ok: false, status: resp.status }));
+  if (!data.ok) {
+    console.error(`Telegram ${method} failed:`, JSON.stringify(data));
+  }
+  return data;
 }
 
 function maskToken(token) {
@@ -519,6 +563,7 @@ async function handleTelegramUpdate(update, env, originUrl) {
 }
 
 async function pollAllUsers(env) {
+  await ensureSchema(env);
   const { results } = await env.DB.prepare(
     `SELECT * FROM users
      WHERE enabled = 1
@@ -632,7 +677,22 @@ export default {
       return new Response(null, { status: 204, headers: corsHeaders() });
     }
     if (url.pathname === "/health") {
-      return jsonResponse({ ok: true });
+      let dbOk = false;
+      let dbError = null;
+      try {
+        await ensureSchema(env);
+        await env.DB.prepare("SELECT 1 AS ok").first();
+        dbOk = true;
+      } catch (err) {
+        dbError = err.message;
+      }
+      return jsonResponse({
+        ok: dbOk && Boolean(env.BOT_TOKEN),
+        has_bot_token: Boolean(env.BOT_TOKEN),
+        has_db: Boolean(env.DB),
+        db_ok: dbOk,
+        db_error: dbError,
+      });
     }
 
     if (url.pathname === "/telegram/webhook" && request.method === "POST") {
@@ -642,12 +702,31 @@ export default {
           return new Response("Forbidden", { status: 403 });
         }
       }
+      if (!env.BOT_TOKEN) {
+        return jsonResponse({ ok: false, error: "BOT_TOKEN secret is not configured" }, 500);
+      }
       const update = await request.json();
-      ctx.waitUntil(handleTelegramUpdate(update, env, url.origin));
-      return jsonResponse({ ok: true });
+      try {
+        await handleTelegramUpdate(update, env, url.origin);
+        return jsonResponse({ ok: true });
+      } catch (err) {
+        console.error("Webhook error:", err);
+        const chatId = update?.message?.chat?.id || update?.callback_query?.message?.chat?.id;
+        if (chatId) {
+          await callTelegram(env, "sendMessage", {
+            chat_id: chatId,
+            parse_mode: "HTML",
+            text: `❌ <b>Ошибка сервера бота:</b> <code>${escapeHtml(err.message)}</code>`,
+          }).catch(() => {});
+        }
+        return jsonResponse({ ok: false, error: err.message }, 500);
+      }
     }
 
     if (url.pathname.startsWith("/api/")) {
+      if (!env.BOT_TOKEN) {
+        return jsonResponse({ error: "BOT_TOKEN не задан в настройках Worker" }, 500);
+      }
       let uid;
       try {
         uid = await verifyTelegramInitData(

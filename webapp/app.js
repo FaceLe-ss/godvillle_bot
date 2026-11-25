@@ -496,11 +496,13 @@
         const remoteState = await apiRequest("/api/state");
         applyLoadedState(remoteState);
       } catch (err) {
-        if (!explicitApi && tg) {
-          // Fallback to sendData mode if no backend API is hosted alongside the static page.
+        if (!explicitApi && tg && String(err.message || "").includes("404")) {
+          // Fallback to sendData mode only when backend /api/state endpoint does not exist (static GitHub Pages).
           transport.mode = "sendData";
         } else {
-          showToast(`Не удалось загрузить настройки: ${err.message}`);
+          els.previewBanner.textContent = `Ошибка API: ${err.message}`;
+          els.previewBanner.classList.remove("hidden");
+          showToast(`Ошибка загрузки настроек: ${err.message}`);
         }
       }
     }

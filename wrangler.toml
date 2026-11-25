@@ -1,6 +1,7 @@
 name = "godvillle-bot"
 main = "cloudflare-worker/src/index.js"
 compatibility_date = "2026-05-24"
+keep_vars = true
 
 [assets]
 directory = "./webapp"
@@ -14,7 +15,3 @@ database_id = "876c14fc-1b80-4b12-8c79-bee7d8fd40ef"
 
 [triggers]
 crons = ["* * * * *"]
-
-[vars]
-GODVILLE_BASE_URL = "https://godville.net"
-ALLOWED_TELEGRAM_IDS = ""

@@ -61,4 +61,20 @@ test("evaluateFilters OR semantics (name or level)", () => {
     levelFilters: [3],
   });
   assert.equal(neither.shouldNotify, false);
+
+  const anyEntry = evaluateFilters(
+    analyzeHeroState({
+      name: "Герой",
+      arena_fight: true,
+      fight_type: "dungeon",
+      diary_last: "Спустился вниз по лестнице.",
+    }),
+    {
+      enabledFightTypes: ["dungeon", "sail"],
+      nameFilters: [],
+      levelFilters: [],
+      isFightEntry: true,
+    }
+  );
+  assert.equal(anyEntry.shouldNotify, true);
 });

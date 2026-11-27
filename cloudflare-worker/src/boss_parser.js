@@ -158,7 +158,7 @@ export function detectExplicitLevel(text) {
 }
 
 const VICTORY_RE = /(?:повержен|победил|одолел|прикончил|добыл[а-яё]*\s+запчаст|получил[а-яё]*\s+реликви|поверг|пал\s+под\s+ударами|улеп[её]тыва|сбежал)/i;
-const COMBAT_HINT_RE = /(?:босс|левиафан|твар[ьиюей]|чудищ|чудовищ|страж|напал|атаковал|встретил|столкнул|схватил|преградил|всплыл|вынырнул|выскочил|вылез|поджида|подстерег|удар|париру|отбива|способност|абил|взрыва|зовет|зовёт|глушит|лечит)/i;
+const COMBAT_HINT_RE = /(?:босс|левиафан|твар[ьиюей]|чудищ|чудовищ|страж|враг|противник|монстр|звер[ьяюем]|напал|атаковал|атак[ауие]|встретил|столкнул|схватил|схватк|преградил|всплыл|вынырнул|выскочил|вылез|поджида|подстерег|удар|урон|ранен|париру|отбива|сража|битв|дуэл|бь[её]т|рычит|шипит|кусает|цапает|способност|абил|взрыва|зовет|зовёт|глушит|лечит)/i;
 
 function extractRawBossPhrase(diary) {
   if (!diary) return null;
@@ -243,7 +243,8 @@ export function evaluateFilters(encounter, {
   const isFilterHit = matchedNames.length > 0 || matchedLevels.length > 0;
 
   if ((encounter.fightType === "dungeon" || encounter.fightType === "sail") && !encounter.isCombatSignal && !isFilterHit) {
-    if (!(notifyUnknownEntry && isFightEntry)) {
+    // If no narrow filter is set, notify on fight entry; otherwise require notifyUnknownEntry.
+    if (!((!hasAnyFilter || notifyUnknownEntry) && isFightEntry)) {
       return { shouldNotify: false, matchedNames: [], matchedLevels: [], reason: "non_combat_step" };
     }
   }

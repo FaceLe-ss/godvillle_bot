@@ -41,6 +41,24 @@ async function ensureSchema(env) {
     env.DB.prepare(
       "CREATE INDEX IF NOT EXISTS idx_users_active ON users (enabled, god_name, api_token)"
     ),
+    env.DB.prepare(
+      `CREATE TABLE IF NOT EXISTS cron_meta (
+        id INTEGER PRIMARY KEY,
+        last_run_at TEXT,
+        users_count INTEGER,
+        notified_count INTEGER,
+        last_error TEXT
+      )`
+    ),
+    env.DB.prepare(
+      `CREATE TABLE IF NOT EXISTS poll_diagnostics (
+        telegram_id INTEGER PRIMARY KEY,
+        last_poll_at TEXT,
+        last_fight_type TEXT,
+        last_arena_fight INTEGER,
+        last_error TEXT
+      )`
+    ),
   ]);
   schemaReady = true;
 }
@@ -249,16 +267,22 @@ function formatSummary(user) {
   const fights = user.fight_types.map((ft) => FIGHT_TYPE_LABELS[ft] || ft).join(", ") || "<i>не выбраны</i>";
   const names = user.name_filters.length ? user.name_filters.map(escapeHtml).join(", ") : "<i>не заданы</i>";
   const levels = user.level_filters.length ? user.level_filters.map((l) => `${l} ур.`).join(", ") : "<i>не заданы</i>";
-  return (
-    `⚙️ <b>Настройки отслеживания</b>\n` +
-    `• <b>Мониторинг:</b> ${statusIcon}\n` +
-    `• <b>Бог:</b> ${god} (токен: <code>${escapeHtml(maskToken(user.api_token))}</code>)\n` +
-    `• <b>Типы боёв:</b> ${fights}\n` +
-    `• <b>Фильтр по имени:</b> ${names}\n` +
-    `• <b>Фильтр по уровню:</b> ${levels}\n` +
-    `• <b>Режим:</b> ${escapeHtml(user.filter_mode)}\n` +
-    `• <b>Сигнал входа без деталей:</b> ${user.notify_unknown_entry ? "Вкл" : "Выкл"}`
-  );
+  const lines = [
+    `⚙️ <b>Настройки отслеживания</b>`,
+    `• <b>Мониторинг:</b> ${statusIcon}`,
+    `• <b>Бог:</b> ${god} (токен: <code>${escapeHtml(maskToken(user.api_token))}</code>)`,
+    `• <b>Типы боёв:</b> ${fights}`,
+    `• <b>Фильтр по имени:</b> ${names}`,
+    `• <b>Фильтр по уровню:</b> ${levels}`,
+    `• <b>Режим:</b> ${escapeHtml(user.filter_mode)}`,
+    `• <b>Сигнал входа без деталей:</b> ${user.notify_unknown_entry ? "Вкл" : "Выкл"}`,
+  ];
+  if ((user.name_filters.length > 0 || user.level_filters.length > 0) && !user.notify_unknown_entry && user.filter_mode === "smart") {
+    lines.push(
+      `\n💡 <i>Подсказка: API Годвилля не всегда пишет имя/уровень босса в diary_last. Включите «Сигнал при входе без деталей» в Mini App, чтобы не пропустить схватки со скрытым именем.</i>`
+    );
+  }
+  return lines.join("\n");
 }
 
 function buildKeyboard(user, webappUrl) {
@@ -530,26 +554,55 @@ async function handleTelegramUpdate(update, env, originUrl) {
     return;
   }
 
-  if (cmd === "/status") {
+  if (cmd === "/status" || cmd === "/test") {
+    const diag = await env.DB.prepare("SELECT * FROM poll_diagnostics WHERE telegram_id = ?").bind(uid).first().catch(() => null);
+    const cron = await env.DB.prepare("SELECT * FROM cron_meta WHERE id = 1").first().catch(() => null);
+    const diagLines = [];
+    if (cron?.last_run_at) diagLines.push(`• <b>Последний Cron:</b> ${escapeHtml(cron.last_run_at)}`);
+    else diagLines.push(`• <b>Последний Cron:</b> <i>ещё не запускался</i>`);
+    if (diag?.last_poll_at) diagLines.push(`• <b>Последний опрос героя:</b> ${escapeHtml(diag.last_poll_at)}`);
+    if (diag?.last_error) diagLines.push(`• <b>Ошибка последнего опроса:</b> <code>${escapeHtml(diag.last_error)}</code>`);
+
     if (!user.god_name || !user.api_token) {
-      await callTelegram(env, "sendMessage", { chat_id: msg.chat.id, parse_mode: "HTML", text: formatSummary(user), reply_markup: buildKeyboard(user, webappUrl) });
+      await callTelegram(env, "sendMessage", {
+        chat_id: msg.chat.id,
+        parse_mode: "HTML",
+        text: formatSummary(user) + "\n\n⚠️ <b>Герой не привязан.</b>\n" + diagLines.join("\n"),
+        reply_markup: buildKeyboard(user, webappUrl),
+      });
       return;
     }
     try {
       const payload = await fetchGodvilleHero(user.god_name, user.api_token, user.base_url);
       const enc = analyzeHeroState(payload);
+      const checkRes = evaluateFilters(enc, {
+        enabledFightTypes: user.fight_types,
+        nameFilters: user.name_filters,
+        levelFilters: user.level_filters,
+        filterMode: user.filter_mode,
+        notifyUnknownEntry: user.notify_unknown_entry,
+        isFightEntry: true,
+      });
       await callTelegram(env, "sendMessage", {
         chat_id: msg.chat.id,
         parse_mode: "HTML",
         text:
           formatSummary(user) +
           `\n\n📊 <b>${escapeHtml(enc.heroName)}</b> (${enc.heroLevel ?? "?"} ур., HP ${enc.health ?? "?"}/${enc.maxHealth ?? "?"})\n` +
-          `• Режим: ${escapeHtml(FIGHT_TYPE_LABELS[enc.fightType] || enc.fightType || "обычное приключение")}\n` +
-          (enc.diaryLast ? `• Дневник: <i>${escapeHtml(enc.diaryLast)}</i>` : ""),
+          `• <b>Приватный API:</b> ${enc.hasPrivateFields ? "✅ да" : "❌ нет (проверьте токен)"}\n` +
+          `• <b>arena_fight / fight_type:</b> <code>${enc.arenaFight}</code> / <code>${escapeHtml(enc.fightType || "нет")}</code>\n` +
+          `• <b>Распознан босс:</b> ${escapeHtml(enc.bossName || "нет")} (ур: ${enc.bossLevel ?? "нет"})\n` +
+          `• <b>Решение фильтра сейчас:</b> <code>${escapeHtml(checkRes.reason)}</code>\n` +
+          (diagLines.length ? diagLines.join("\n") + "\n" : "") +
+          (enc.diaryLast ? `\n📖 <i>${escapeHtml(enc.diaryLast)}</i>` : ""),
         reply_markup: buildKeyboard(user, webappUrl),
       });
     } catch (err) {
-      await callTelegram(env, "sendMessage", { chat_id: msg.chat.id, parse_mode: "HTML", text: `❌ Ошибка API: <code>${escapeHtml(err.message)}</code>` });
+      await callTelegram(env, "sendMessage", {
+        chat_id: msg.chat.id,
+        parse_mode: "HTML",
+        text: formatSummary(user) + `\n\n❌ <b>Ошибка API Годвилля:</b> <code>${escapeHtml(err.message)}</code>\n` + diagLines.join("\n"),
+      });
     }
     return;
   }
@@ -558,12 +611,17 @@ async function handleTelegramUpdate(update, env, originUrl) {
     chat_id: msg.chat.id,
     parse_mode: "HTML",
     text:
-      "Команды: /start, /setup, /app, /filters, /addname, /delname, /clearnames, /levels, /status, /pause, /resume",
+      "Команды: /start, /setup, /app, /filters, /addname, /delname, /clearnames, /levels, /status, /test, /pause, /resume",
   });
 }
 
 async function pollAllUsers(env) {
   await ensureSchema(env);
+  const pollNow = new Date().toISOString();
+  let usersCount = 0;
+  let notifiedCount = 0;
+  let lastCronError = null;
+
   const { results } = await env.DB.prepare(
     `SELECT * FROM users
      WHERE enabled = 1
@@ -572,10 +630,23 @@ async function pollAllUsers(env) {
   ).all();
 
   for (const row of results || []) {
+    usersCount += 1;
     const user = rowToUser(row);
     try {
       const payload = await fetchGodvilleHero(user.god_name, user.api_token, user.base_url);
       const encounter = analyzeHeroState(payload);
+
+      await env.DB.prepare(
+        `INSERT INTO poll_diagnostics (telegram_id, last_poll_at, last_fight_type, last_arena_fight, last_error)
+         VALUES (?, ?, ?, ?, NULL)
+         ON CONFLICT(telegram_id) DO UPDATE SET
+           last_poll_at = excluded.last_poll_at,
+           last_fight_type = excluded.last_fight_type,
+           last_arena_fight = excluded.last_arena_fight,
+           last_error = NULL`
+      )
+        .bind(user.telegram_id, pollNow, encounter.fightType, encounter.arenaFight ? 1 : 0)
+        .run();
 
       if (!encounter.hasPrivateFields) {
         if (!user.token_warning_sent) {
@@ -635,6 +706,7 @@ async function pollAllUsers(env) {
           });
           nextNotifiedKey = dedupKey;
           notifiedNow = true;
+          notifiedCount += 1;
         }
       }
 
@@ -665,9 +737,32 @@ async function pollAllUsers(env) {
           .run();
       }
     } catch (err) {
+      lastCronError = err.message;
       console.warn(`Poll error for user ${user.telegram_id}:`, err.message);
+      await env.DB.prepare(
+        `INSERT INTO poll_diagnostics (telegram_id, last_poll_at, last_fight_type, last_arena_fight, last_error)
+         VALUES (?, ?, NULL, NULL, ?)
+         ON CONFLICT(telegram_id) DO UPDATE SET
+           last_poll_at = excluded.last_poll_at,
+           last_error = excluded.last_error`
+      )
+        .bind(user.telegram_id, pollNow, err.message)
+        .run()
+        .catch(() => {});
     }
   }
+
+  await env.DB.prepare(
+    `INSERT INTO cron_meta (id, last_run_at, users_count, notified_count, last_error)
+     VALUES (1, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       last_run_at = excluded.last_run_at,
+       users_count = excluded.users_count,
+       notified_count = excluded.notified_count,
+       last_error = excluded.last_error`
+  )
+    .bind(pollNow, usersCount, notifiedCount, lastCronError)
+    .run();
 }
 
 export default {
@@ -679,9 +774,22 @@ export default {
     if (url.pathname === "/health") {
       let dbOk = false;
       let dbError = null;
+      let totalUsers = 0;
+      let activeUsers = 0;
+      let cronMeta = null;
+      let lastDiag = null;
       try {
         await ensureSchema(env);
-        await env.DB.prepare("SELECT 1 AS ok").first();
+        const tot = await env.DB.prepare("SELECT COUNT(*) AS cnt FROM users").first();
+        const act = await env.DB.prepare(
+          "SELECT COUNT(*) AS cnt FROM users WHERE enabled = 1 AND god_name IS NOT NULL AND TRIM(god_name) != '' AND api_token IS NOT NULL AND TRIM(api_token) != ''"
+        ).first();
+        cronMeta = await env.DB.prepare("SELECT * FROM cron_meta WHERE id = 1").first();
+        lastDiag = await env.DB.prepare(
+          "SELECT last_poll_at, last_fight_type, last_arena_fight, last_error FROM poll_diagnostics ORDER BY last_poll_at DESC LIMIT 1"
+        ).first();
+        totalUsers = Number(tot?.cnt || 0);
+        activeUsers = Number(act?.cnt || 0);
         dbOk = true;
       } catch (err) {
         dbError = err.message;
@@ -692,6 +800,16 @@ export default {
         has_db: Boolean(env.DB),
         db_ok: dbOk,
         db_error: dbError,
+        total_users: totalUsers,
+        active_users: activeUsers,
+        last_cron_at: cronMeta?.last_run_at || null,
+        last_cron_users: cronMeta?.users_count ?? null,
+        last_cron_notified: cronMeta?.notified_count ?? null,
+        last_cron_error: cronMeta?.last_error || null,
+        last_user_poll_at: lastDiag?.last_poll_at || null,
+        last_user_fight_type: lastDiag?.last_fight_type || null,
+        last_user_arena_fight: lastDiag ? Boolean(lastDiag.last_arena_fight) : null,
+        last_user_error: lastDiag?.last_error || null,
       });
     }
 

@@ -211,10 +211,11 @@ _VICTORY_OR_END_PATTERN = re.compile(
 )
 
 _COMBAT_HINT_PATTERN = re.compile(
-    r"\b(?:босс\w*|левиафан\w*|твар[ьиюей]\w*|чудищ\w*|чудовищ\w*|страж\w*|"
-    r"напал\w*|атаковал\w*|встретил\w*|столкнул\w*|схватил\w*|преградил\w*|"
+    r"\b(?:босс\w*|левиафан\w*|твар[ьиюей]\w*|чудищ\w*|чудовищ\w*|страж\w*|враг\w*|противник\w*|монстр\w*|звер[ьяюем]\w*|"
+    r"напал\w*|атаковал\w*|атак\w*|встретил\w*|столкнул\w*|схватил\w*|схватк\w*|преградил\w*|"
     r"всплыл\w*|вынырнул\w*|выскочил\w*|вылез\w*|поджида\w*|подстерег\w*|"
-    r"удар\w*|париру\w*|отбива\w*|способност\w*|абил\w*|взрыва\w*|зовет|зовёт|глушит|лечит\w*)\b",
+    r"удар\w*|урон\w*|ранен\w*|париру\w*|отбива\w*|сража\w*|битв\w*|дуэл\w*|бь[её]т\w*|рычит|шипит|кусает|цапает|"
+    r"способност\w*|абил\w*|взрыва\w*|зовет|зовёт|глушит|лечит\w*)\b",
     re.IGNORECASE,
 )
 
@@ -471,9 +472,9 @@ def evaluate_filters(
     is_filter_hit = bool(matched_names or matched_levels)
 
     # Inside dungeon/sail, ignore plain exploration/corridor diary lines unless a user-configured
-    # filter matched directly, there is a combat/boss signal, or entry notification is enabled.
+    # filter matched directly, there is a combat/boss signal, or entry notification applies.
     if encounter.fight_type in ("dungeon", "sail") and not encounter.is_combat_signal and not is_filter_hit:
-        if not (notify_unknown_entry and is_fight_entry):
+        if not ((not has_any_filter or notify_unknown_entry) and is_fight_entry):
             return FilterResult(should_notify=False, reason="non_combat_step")
 
     if filter_mode == "all":

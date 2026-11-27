@@ -171,3 +171,44 @@ def test_detect_missing_private_fields() -> None:
     enc = analyze_hero_state(public_only)
     assert enc.has_private_fields is False
     assert enc.is_boss_fight is False
+
+
+def test_empty_filters_notify_on_dungeon_entry_and_combat_words() -> None:
+    entry = analyze_hero_state(
+        {
+            "name": "Герой",
+            "arena_fight": True,
+            "fight_type": "dungeon",
+            "diary_last": "Спустился вниз по лестнице.",
+        }
+    )
+    assert (
+        evaluate_filters(
+            entry,
+            enabled_fight_types={"dungeon", "sail"},
+            name_filters=[],
+            level_filters=[],
+            is_fight_entry=True,
+        ).should_notify
+        is True
+    )
+
+    combat = analyze_hero_state(
+        {
+            "name": "Герой",
+            "arena_fight": True,
+            "fight_type": "dungeon",
+            "diary_last": "Противник рычит и готовится атаковать.",
+        }
+    )
+    assert combat.is_combat_signal is True
+    assert (
+        evaluate_filters(
+            combat,
+            enabled_fight_types={"dungeon", "sail"},
+            name_filters=[],
+            level_filters=[],
+            is_fight_entry=False,
+        ).should_notify
+        is True
+    )

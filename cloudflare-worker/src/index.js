@@ -328,10 +328,10 @@ function buildKeyboard(user, webappUrl) {
 
 function computeDedupKey(encounter, filterResult) {
   const fight = encounter.fightType || (encounter.arenaFight ? "arena" : "fight");
-  if (filterResult?.reason === "unknown_fight_entry") return `${fight}:entry`;
   if (encounter.bossName) return `${fight}:name:${normalizeRu(encounter.bossName)}`;
   if (filterResult?.matchedNames?.length) return `${fight}:name:${normalizeRu(filterResult.matchedNames[0])}`;
   if (encounter.bossLevel !== null) return `${fight}:lvl:${encounter.bossLevel}`;
+  if (filterResult?.reason === "unknown_fight_entry") return `${fight}:entry`;
   return `${fight}:combat`;
 }
 
@@ -686,6 +686,11 @@ async function pollAllUsers(env) {
       }
 
       const isFightEntry = Boolean(encounter.fightType && encounter.fightType !== user.last_fight_type);
+      const hasPendingUnknownEntry = Boolean(
+        encounter.fightType &&
+        encounter.fightType === user.last_fight_type &&
+        user.last_notified_key === `${encounter.fightType}:entry`
+      );
       const filterResult = evaluateFilters(encounter, {
         enabledFightTypes: user.fight_types,
         nameFilters: user.name_filters,
@@ -693,6 +698,7 @@ async function pollAllUsers(env) {
         filterMode: user.filter_mode,
         notifyUnknownEntry: user.notify_unknown_entry,
         isFightEntry,
+        hasPendingUnknownEntry,
       });
 
       let nextNotifiedKey = user.last_notified_key;

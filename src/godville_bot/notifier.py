@@ -29,14 +29,14 @@ SendMessageFn = Callable[[int, str], Awaitable[None]]
 def compute_dedup_key(encounter: BossEncounter, filter_result: FilterResult | None = None) -> str:
     """Create a stable deduplication key for the current boss encounter."""
     fight = encounter.fight_type or ("arena" if encounter.arena_fight else "fight")
-    if filter_result is not None and filter_result.reason == "unknown_fight_entry":
-        return f"{fight}:entry"
     if encounter.boss_name:
         return f"{fight}:name:{normalize_ru(encounter.boss_name)}"
     if filter_result is not None and filter_result.matched_names:
         return f"{fight}:name:{normalize_ru(filter_result.matched_names[0])}"
     if encounter.boss_level is not None:
         return f"{fight}:lvl:{encounter.boss_level}"
+    if filter_result is not None and filter_result.reason == "unknown_fight_entry":
+        return f"{fight}:entry"
     return f"{fight}:combat"
 
 
@@ -183,6 +183,11 @@ class BossMonitorService:
         is_fight_entry = bool(
             encounter.fight_type and encounter.fight_type != user.last_fight_type
         )
+        has_pending_unknown_entry = bool(
+            encounter.fight_type
+            and encounter.fight_type == user.last_fight_type
+            and user.last_notified_key == f"{encounter.fight_type}:entry"
+        )
         filter_result = evaluate_filters(
             encounter,
             enabled_fight_types=user.fight_types,
@@ -191,6 +196,7 @@ class BossMonitorService:
             filter_mode=user.filter_mode,
             notify_unknown_entry=user.notify_unknown_entry,
             is_fight_entry=is_fight_entry,
+            has_pending_unknown_entry=has_pending_unknown_entry,
         )
 
         # Reset dedup key when leaving a fight, after victory/defeat, or on non-combat exploration steps.

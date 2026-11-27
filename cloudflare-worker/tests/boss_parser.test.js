@@ -117,4 +117,25 @@ test("unknown-level boss entry with notifyUnknownEntry and mid-fight escape guar
   });
   assert.equal(suppressedLvl1.shouldNotify, false);
   assert.equal(suppressedLvl1.reason, "filter_mismatch");
+
+  const execuza = analyzeHeroState({
+    name: "Герой",
+    arena_fight: true,
+    fight_type: "dungeon",
+    diary_last: "Встретили Экзекудзу!",
+  });
+  assert.equal(execuza.bossName, "Экзекудза");
+  assert.equal(execuza.bossLevel, 4);
+
+  const followUp = evaluateFilters(escaping, {
+    enabledFightTypes: ["dungeon", "sail", "boss", "boss_m"],
+    nameFilters: ["Проорк"],
+    levelFilters: [2, 3, 4],
+    filterMode: "smart",
+    notifyUnknownEntry: true,
+    isFightEntry: false,
+    hasPendingUnknownEntry: true,
+  });
+  assert.equal(followUp.shouldNotify, true);
+  assert.equal(followUp.reason, "unknown_fight_details");
 });

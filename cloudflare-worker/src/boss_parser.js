@@ -19,12 +19,15 @@ export const KNOWN_BOSS_LEVELS = {
   Остепенитель: 2, Пожорник: 2, Примятель: 2, Сатаняшка: 2, Страшник: 2,
   Телоранитель: 2, Харчеватель: 2, Черепакостник: 2, Швейцарь: 2,
   // Level 3
-  Администраж: 3, Бомбуин: 3, Великотушный: 3, Всёгун: 3, Гарантюа: 3, Генеракл: 3,
-  Днищеброд: 3, Монстрейшина: 3, Укрупье: 3,
+  Администраж: 3, Амбаловень: 3, Бешенец: 3, Бомбуин: 3, Босспитатель: 3, Бревень: 3,
+  Бревнолицый: 3, Великотушный: 3, Всёгун: 3, Втиран: 3, Гарантюа: 3, Гаубийца: 3,
+  Генеракл: 3, Глыберал: 3, Днищеброд: 3, Люцемер: 3, Монстрейшина: 3, Нехилер: 3,
+  Отъелло: 3, Разворотила: 3, Скушатель: 3, Танкистадор: 3, Укрупье: 3, Фингалист: 3,
   // Level 4
   Глодочник: 4, Данжеватель: 4, Дровецкий: 4, Дюжегуб: 4, Лжинн: 4, Лихорадий: 4,
   Ломамонт: 4, Мохнарх: 4, Необходимый: 4, Необык: 4, Пресекач: 4, Прессонаж: 4,
   Проорк: 4, Ротозевс: 4, Спилист: 4, Ссылач: 4, Терзан: 4, Упекун: 4,
+  Экзекудза: 4, Ямбал: 4,
 };
 
 const BOSS_ABILITY_PREFIXES = [
@@ -233,6 +236,7 @@ export function evaluateFilters(encounter, {
   filterMode = "smart",
   notifyUnknownEntry = false,
   isFightEntry = false,
+  hasPendingUnknownEntry = false,
 }) {
   if (!encounter.isBossFight) return { shouldNotify: false, matchedNames: [], matchedLevels: [], reason: "not_in_boss_fight" };
   if (encounter.fightType && !enabledFightTypes.includes(encounter.fightType)) {
@@ -265,6 +269,16 @@ export function evaluateFilters(encounter, {
     (levelFilters.length > 0 && encounter.bossLevel === null);
   if (filterMode === "smart" && notifyUnknownEntry && isFightEntry && isUnknownDetails) {
     return { shouldNotify: true, matchedNames: [], matchedLevels: [], reason: "unknown_fight_entry" };
+  }
+  if (
+    filterMode === "smart" &&
+    notifyUnknownEntry &&
+    hasPendingUnknownEntry &&
+    encounter.bossName &&
+    levelFilters.length > 0 &&
+    encounter.bossLevel === null
+  ) {
+    return { shouldNotify: true, matchedNames: [], matchedLevels: [], reason: "unknown_fight_details" };
   }
   return { shouldNotify: false, matchedNames: [], matchedLevels: [], reason: "filter_mismatch" };
 }

@@ -62,14 +62,29 @@ KNOWN_BOSS_LEVELS: dict[str, int] = {
     "Швейцарь": 2,
     # Level 3 (3 abilities)
     "Администраж": 3,
+    "Амбаловень": 3,
+    "Бешенец": 3,
     "Бомбуин": 3,
+    "Босспитатель": 3,
+    "Бревень": 3,
+    "Бревнолицый": 3,
     "Великотушный": 3,
     "Всёгун": 3,
+    "Втиран": 3,
     "Гарантюа": 3,
+    "Гаубийца": 3,
     "Генеракл": 3,
+    "Глыберал": 3,
     "Днищеброд": 3,
+    "Люцемер": 3,
     "Монстрейшина": 3,
+    "Нехилер": 3,
+    "Отъелло": 3,
+    "Разворотила": 3,
+    "Скушатель": 3,
+    "Танкистадор": 3,
     "Укрупье": 3,
+    "Фингалист": 3,
     # Level 4 (4 abilities)
     "Глодочник": 4,
     "Данжеватель": 4,
@@ -89,6 +104,8 @@ KNOWN_BOSS_LEVELS: dict[str, int] = {
     "Ссылач": 4,
     "Терзан": 4,
     "Упекун": 4,
+    "Экзекудза": 4,
+    "Ямбал": 4,
 }
 
 # Ability prefixes for boss-monsters (stem -> canonical label).
@@ -455,6 +472,7 @@ def evaluate_filters(
     filter_mode: str = "smart",
     notify_unknown_entry: bool = False,
     is_fight_entry: bool = False,
+    has_pending_unknown_entry: bool = False,
 ) -> FilterResult:
     """Decide whether an encounter matches user's name OR level filter criteria."""
     if not encounter.is_boss_fight:
@@ -515,6 +533,19 @@ def evaluate_filters(
         return FilterResult(
             should_notify=True,
             reason="unknown_fight_entry",
+        )
+
+    if (
+        filter_mode == "smart"
+        and notify_unknown_entry
+        and has_pending_unknown_entry
+        and encounter.boss_name is not None
+        and bool(level_filters)
+        and encounter.boss_level is None
+    ):
+        return FilterResult(
+            should_notify=True,
+            reason="unknown_fight_details",
         )
 
     return FilterResult(should_notify=False, reason="filter_mismatch")

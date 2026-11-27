@@ -241,3 +241,66 @@ async def test_unknown_entry_and_subsequent_boss_in_sail(tmp_path: Path) -> None
     finally:
         await client.close()
         storage.close()
+
+
+async def test_unknown_entry_followed_by_revealed_boss_name_and_level(tmp_path: Path) -> None:
+    storage = BotStorage(tmp_path / "bot.db")
+    storage.set_credentials(101, "Дедпул", "tok")
+    storage.toggle_fight_type(101, "boss")
+    storage.toggle_fight_type(101, "boss_m")
+    storage.add_name_filters(101, ["Проорк"])
+    for lvl in (2, 3, 4):
+        storage.toggle_level_filter(101, lvl)
+    storage.toggle_notify_unknown(101)
+
+    timeline = [
+        # T=0: Fight starts without boss details -> 1st alert (unknown)
+        {
+            "name": "Уэйд",
+            "arena_fight": True,
+            "fight_type": "boss_m",
+            "diary_last": "Почуял неладное и вступил в схватку!",
+        },
+        # T=1: Diary reveals non-catalog boss name -> 2nd alert with name
+        {
+            "name": "Уэйд",
+            "arena_fight": True,
+            "fight_type": "boss_m",
+            "diary_last": "Противник — босс Чумоход — машет лапами!",
+        },
+        # T=2: Diary later reveals boss abilities/level -> 3rd alert with level 3
+        {
+            "name": "Уэйд",
+            "arena_fight": True,
+            "fight_type": "boss_m",
+            "diary_last": "Бойкий Мощный Взрывной противник теснит героя!",
+        },
+    ]
+    idx = 0
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        nonlocal idx
+        payload = timeline[idx]
+        idx += 1
+        return httpx.Response(200, json=payload)
+
+    sent: list[tuple[int, str]] = []
+
+    async def send_msg(chat_id: int, text: str) -> None:
+        sent.append((chat_id, text))
+
+    client = GodvilleClient(transport=httpx.MockTransport(handler))
+    monitor = BossMonitorService(storage, client, send_msg, poll_interval_seconds=60)
+    try:
+        for step in range(len(timeline)):
+            user = storage.get_user(101)
+            assert user is not None
+            await monitor.poll_user(user, now_monotonic=float(step * 60))
+
+        assert len(sent) == 3
+        assert "имя не распознано" in sent[0][1]
+        assert "Чумоход" in sent[1][1]
+        assert "Уровень / абилки:</b> 3" in sent[2][1]
+    finally:
+        await client.close()
+        storage.close()

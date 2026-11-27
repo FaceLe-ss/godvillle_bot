@@ -212,3 +212,29 @@ def test_empty_filters_notify_on_dungeon_entry_and_combat_words() -> None:
         ).should_notify
         is True
     )
+
+
+def test_unknown_level_boss_entry_with_notify_unknown_and_midfight_escape() -> None:
+    escaping = analyze_hero_state(
+        {
+            "name": "Герой",
+            "arena_fight": True,
+            "fight_type": "boss_m",
+            "diary_last": "Встретил босса Чумохода, который пытается улепётывать с поля боя!",
+        }
+    )
+    assert escaping.is_post_fight is False
+    assert escaping.boss_name == "Чумохода"
+    assert escaping.boss_level is None
+
+    res = evaluate_filters(
+        escaping,
+        enabled_fight_types={"dungeon", "sail", "boss", "boss_m"},
+        name_filters=["Проорк"],
+        level_filters=[2, 3, 4],
+        filter_mode="smart",
+        notify_unknown_entry=True,
+        is_fight_entry=True,
+    )
+    assert res.should_notify is True
+    assert res.reason == "unknown_fight_entry"

@@ -279,7 +279,7 @@ function formatSummary(user) {
   ];
   if ((user.name_filters.length > 0 || user.level_filters.length > 0) && !user.notify_unknown_entry && user.filter_mode === "smart") {
     lines.push(
-      `\n💡 <i>Подсказка: API Годвилля не всегда пишет имя/уровень босса в diary_last. Включите «Сигнал при входе без деталей» в Mini App, чтобы не пропустить схватки со скрытым именем.</i>`
+      `\n⚠️ <i>Пока «Вход без деталей» выключен, бот пропускает бои, где API не написал имя или уровень босса в diary_last. Нажмите кнопку <b>🔕 Вход без деталей</b> ниже или переключите режим на <b>Все боссы</b>.</i>`
     );
   }
   return lines.join("\n");
@@ -303,11 +303,18 @@ function buildKeyboard(user, webappUrl) {
     { text: `${user.filter_mode === "strict" ? "✅ " : ""}Строгий`, callback_data: "mode:strict" },
     { text: `${user.filter_mode === "all" ? "✅ " : ""}Все боссы`, callback_data: "mode:all" },
   ];
+  const unknownRow = [
+    {
+      text: user.notify_unknown_entry ? "🔔 Вход без деталей: Вкл" : "🔕 Вход без деталей: Выкл",
+      callback_data: "action:toggle_unknown",
+    },
+  ];
   const rows = [
     lvlRow,
     ftRow1,
     ftRow2,
     modeRow,
+    unknownRow,
     [
       { text: user.enabled ? "⏸ Пауза" : "▶️ Включить", callback_data: "action:toggle_enabled" },
       { text: "🔄 Проверить сейчас", callback_data: "action:check_now" },
@@ -390,6 +397,8 @@ async function handleTelegramUpdate(update, env, originUrl) {
       user = await applySettings(env, uid, { filter_mode: data.split(":")[1] });
     } else if (data === "action:toggle_enabled") {
       user = await applySettings(env, uid, { enabled: !user.enabled });
+    } else if (data === "action:toggle_unknown") {
+      user = await applySettings(env, uid, { notify_unknown_entry: !user.notify_unknown_entry });
     } else if (data === "action:check_now") {
       await callTelegram(env, "answerCallbackQuery", { callback_query_id: cb.id, text: "Проверяю API..." });
       if (!user.god_name || !user.api_token) {
@@ -403,13 +412,23 @@ async function handleTelegramUpdate(update, env, originUrl) {
       try {
         const payload = await fetchGodvilleHero(user.god_name, user.api_token, user.base_url);
         const enc = analyzeHeroState(payload);
+        const checkRes = evaluateFilters(enc, {
+          enabledFightTypes: user.fight_types,
+          nameFilters: user.name_filters,
+          levelFilters: user.level_filters,
+          filterMode: user.filter_mode,
+          notifyUnknownEntry: user.notify_unknown_entry,
+          isFightEntry: true,
+        });
         await callTelegram(env, "sendMessage", {
           chat_id: uid,
           parse_mode: "HTML",
           text:
             `📊 <b>${escapeHtml(enc.heroName)}</b> (${enc.heroLevel ?? "?"} ур., HP ${enc.health ?? "?"}/${enc.maxHealth ?? "?"})\n` +
             `• Режим: ${escapeHtml(FIGHT_TYPE_LABELS[enc.fightType] || enc.fightType || "обычное приключение")}\n` +
-            (enc.diaryLast ? `• Дневник: <i>${escapeHtml(enc.diaryLast)}</i>` : ""),
+            `• Распознан босс: ${escapeHtml(enc.bossName || "нет")} (ур: ${enc.bossLevel ?? "нет"})\n` +
+            `• Решение фильтра сейчас: <code>${escapeHtml(checkRes.reason)}</code>` +
+            (enc.diaryLast ? `\n• Дневник: <i>${escapeHtml(enc.diaryLast)}</i>` : ""),
         });
       } catch (err) {
         await callTelegram(env, "sendMessage", {

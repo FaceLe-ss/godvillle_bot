@@ -39,6 +39,7 @@ const BOSS_ABILITY_PREFIXES = [
   ["ломающ", "Ломающий"],
   ["мощн", "Мощный"],
   ["мним", "Мнимый"],
+  ["мутирующ", "Мутирующий"],
   ["неверующ", "Неверующий"],
   ["паразитирующ", "Паразитирующий"],
   ["пробивающ", "Пробивающий"],
@@ -47,6 +48,7 @@ const BOSS_ABILITY_PREFIXES = [
   ["тащащ", "Тащащий"],
   ["творящ", "Творящий"],
   ["транжирящ", "Транжирящий"],
+  ["ушаст", "Ушастый"],
 ];
 
 const RU_ENDINGS = [
@@ -157,19 +159,19 @@ export function detectExplicitLevel(text) {
   return null;
 }
 
-const VICTORY_RE = /(?:повержен|победил|одолел|прикончил|добыл[а-яё]*\s+запчаст|получил[а-яё]*\s+реликви|поверг|пал\s+под\s+ударами|улеп[её]тыва|сбежал)/i;
+const VICTORY_RE = /(?:повержен|победил|одолел|прикончил|добыл[а-яё]*\s+запчаст|получил[а-яё]*\s+реликви|поверг|пал\s+под\s+ударами|успел[аио]?\s+улепет|сбежал\s+с\s+пол[яе]\s+боя)/i;
 const COMBAT_HINT_RE = /(?:босс|левиафан|твар[ьиюей]|чудищ|чудовищ|страж|враг|противник|монстр|звер[ьяюем]|напал|атаковал|атак[ауие]|встретил|столкнул|схватил|схватк|преградил|всплыл|вынырнул|выскочил|вылез|поджида|подстерег|удар|урон|ранен|париру|отбива|сража|битв|дуэл|бь[её]т|рычит|шипит|кусает|цапает|способност|абил|взрыва|зовет|зовёт|глушит|лечит)/i;
 
 function extractRawBossPhrase(diary) {
   if (!diary) return null;
   const patterns = [
-    /(?:босс(?:-монстр)?|рейд-?босс|левиафан|чудищ[еа]|чудовищ[еа]|страж)\s+(?:по имени\s+|по прозвищу\s+|—\s*|-\s*)?([А-ЯЁA-Z][А-ЯЁа-яёA-Za-z0-9 -]{2,55})/,
-    /(?:встретил(?:ся|ись)?\s+с|столкнул(?:ся|ись)?\s+с|напал(?:а|о|и)?\s+|атаковал(?:а|о|и)?\s+|преградил(?:а|и)?\s+путь\s+|схватил(?:ся|ись)?\s+с|нарвал(?:ся|ись)?\s+на|напорол(?:ся|ись)?\s+на|сража[ею]тся\s+с|отбива[ею]тся\s+от)\s+([А-ЯЁA-Z][А-ЯЁа-яёA-Za-z0-9 -]{2,55})/,
+    /(?:босс(?:-монстр[а-яё]*|[ауое]|ом)?|рейд-?босс[а-яё]*|мини-?босс[а-яё]*|левиафан[а-яё]*|чудищ[еау]?|чудовищ[еау]?|страж[а-яё]*)\s+(?:по имени\s+|по прозвищу\s+|—\s*|-\s*)?([А-ЯЁA-Z][А-ЯЁа-яёA-Za-z0-9 -]{2,55})/,
+    /(?:встретил(?:ся|ись)?\s+(?:с\s+)?|столкнул(?:ся|ись)?\s+с\s+|напал(?:а|о|и)?\s+|атаковал(?:а|о|и)?\s+|преградил(?:а|и)?\s+путь\s+|схватил(?:ся|ись)?\s+с\s+|нарвал(?:ся|ись)?\s+на\s+|напорол(?:ся|ись)?\s+на\s+|сража[ею]тся\s+с\s+|отбива[ею]тся\s+от\s+)([А-ЯЁA-Z][А-ЯЁа-яёA-Za-z0-9 -]{2,55})/,
   ];
   for (const re of patterns) {
     const m = re.exec(diary);
     if (m) {
-      const candidate = m[1].replace(/[.,!?;:\n()«»"'].*$/, "").replace(/^[ -—]+|[ -—]+$/g, "");
+      const candidate = m[1].replace(/[.,!?;:\n()«»"'].*$/, "").replace(/^[\s\-—]+|[\s\-—]+$/g, "");
       if (candidate.length >= 3) return candidate;
     }
   }
@@ -258,7 +260,10 @@ export function evaluateFilters(encounter, {
   if (isFilterHit) {
     return { shouldNotify: true, matchedNames, matchedLevels, reason: "filter_match" };
   }
-  if (filterMode === "smart" && notifyUnknownEntry && isFightEntry && !encounter.bossName && encounter.bossLevel === null) {
+  const isUnknownDetails =
+    (!encounter.bossName && encounter.bossLevel === null) ||
+    (levelFilters.length > 0 && encounter.bossLevel === null);
+  if (filterMode === "smart" && notifyUnknownEntry && isFightEntry && isUnknownDetails) {
     return { shouldNotify: true, matchedNames: [], matchedLevels: [], reason: "unknown_fight_entry" };
   }
   return { shouldNotify: false, matchedNames: [], matchedLevels: [], reason: "filter_mismatch" };

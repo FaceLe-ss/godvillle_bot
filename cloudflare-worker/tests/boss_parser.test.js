@@ -25,8 +25,8 @@ test("catalog boss detection with Russian declensions", () => {
 });
 
 test("abilities counting and yo normalization", () => {
-  const abilities = detectAbilities("Бойкий Мощный Пробивающий Левиафан");
-  assert.deepEqual(abilities, ["Бойкий", "Мощный", "Пробивающий"]);
+  const abilities = detectAbilities("Бойкий Мощный Пробивающий Мутирующий Ушастый Левиафан");
+  assert.deepEqual(abilities, ["Бойкий", "Мощный", "Пробивающий", "Мутирующий", "Ушастый"]);
   assert.equal(detectExplicitLevel("Герой 3 уровня перешёл на 2 уровень подземелья."), null);
   assert.equal(detectExplicitLevel("Перед нами босс 3-го уровня!"), 3);
   assert.equal(matchesBossName("Дракорожденный", "Дракорождённый"), true);
@@ -77,4 +77,44 @@ test("evaluateFilters OR semantics (name or level)", () => {
     }
   );
   assert.equal(anyEntry.shouldNotify, true);
+});
+
+test("unknown-level boss entry with notifyUnknownEntry and mid-fight escape guard", () => {
+  const escaping = analyzeHeroState({
+    name: "Герой",
+    arena_fight: true,
+    fight_type: "boss_m",
+    diary_last: "Встретил босса Чумохода, который пытается улепётывать с поля боя!",
+  });
+  assert.equal(escaping.isPostFight, false);
+  assert.equal(escaping.bossName, "Чумохода");
+  assert.equal(escaping.bossLevel, null);
+
+  const withUnknownOn = evaluateFilters(escaping, {
+    enabledFightTypes: ["dungeon", "sail", "boss", "boss_m"],
+    nameFilters: ["Проорк"],
+    levelFilters: [2, 3, 4],
+    filterMode: "smart",
+    notifyUnknownEntry: true,
+    isFightEntry: true,
+  });
+  assert.equal(withUnknownOn.shouldNotify, true);
+  assert.equal(withUnknownOn.reason, "unknown_fight_entry");
+
+  const lvl1Catalog = analyzeHeroState({
+    name: "Герой",
+    arena_fight: true,
+    fight_type: "boss_m",
+    diary_last: "Напал на Агонщика!",
+  });
+  const suppressedLvl1 = evaluateFilters(lvl1Catalog, {
+    enabledFightTypes: ["dungeon", "sail", "boss", "boss_m"],
+    nameFilters: ["Проорк"],
+    levelFilters: [2, 3, 4],
+    filterMode: "smart",
+    notifyUnknownEntry: true,
+    isFightEntry: true,
+  });
+  assert.equal(suppressedLvl1.shouldNotify, false);
+  assert.equal(suppressedLvl1.reason, "filter_mismatch");
 });
